@@ -1,38 +1,50 @@
 # This file is executed on every boot (including wake-boot from deepsleep)
-# EA1HET @ 2018-12-26
+# EA1HET @ 2019-01-01
 
+import gc
 import sys
-from ntptime import settime
-from utime import localtime
+from machine import Pin, deepsleep
+from dht import DHT11
+from time import sleep
+
 
 gc.collect()
+
+myreset=Pin(32, mode=Pin.OUT, value=1)
+sensor = DHT11(Pin(4))
+name = config.hostname + "-esp-%s" % binascii.hexlify(wlan_client.config("mac")[-3:]).decode("ascii")
+macaddr = binascii.hexlify(wlan_client.config('mac'),':').decode('utf-8')
+
+print('\n[System]')
+print('Running Micropython on WEMOS.CC LoLin32 v1.0 Rev.1')
+print('Free RAM    : %s bytes' % gc.mem_free())
+print('Hostname    : {} ({})'.format(name, sys.platform))
+print('Python      : %s' % sys.version)
+print('WiFi MAC    :', macaddr)    
+
+if wlan_client.isconnected():
+    print('IP address  :', ip)
+    print('Netmask     :', netmask)
+    print('Gateway     :', gateway)
+    print('DNS Server  :', dns)  
+else:
+    print('Networking  : Wi-Fi not connected')
+
+sleep(5)
 
 try:
-    settime() 
-    tup = localtime()
-    lcldate = '{}-{}-{}'.format(tup[0],tup[1],tup[2])  
-except:
-    lcldate = 'Date not set' 
-    pass
-
-print('\n[Main]')
-print('Running Micropython on WEMOS.CC LoLin32 v1.0 Rev.1')
-
-if not wlan_client.isconnected():
-    print('Error: Wi-Fi not connected')
-else:
-    print('hostname :', name)
-    print('Python   : %s' % sys.version)
-    print() 
-    print('IP addr  :', ip)
-    print('Netmask  :', netmask)
-    print('Gateway  :', gateway)
-    print('DNS Srv  :', dns)
-    print('WiFi MAC :', macaddress) 
-    print('Lcl Date :', lcldate) 
-    print('Free MEM : %s bytes' % gc.mem_free())
-
-print('\nEntering REPL...\n') 
-gc.collect()
-
-# Here comes your code....
+    sensor.measure()
+    print('\n[Barometer]')
+    print('Temperature : %sº' % sensor.temperature())
+    print('Humidity    : {}%'.format(sensor.humidity()))
+    print('\nNow, going Deep Sleep...')  
+    wlan_client.active(False) 
+    sleep(2)
+    deepsleep(60000)
+except OSError as e:
+    print(e)
+    print('Sensor not available/operational.')
+    print('Rebooting (5s)...\n')
+    sleep(5)
+    myreset(0)
+    
